@@ -30,25 +30,16 @@ auto Activation::activation(Activations value) ->
                                 path);
         }
 
-        // Add logic for BMC Code Update
-        if(1)
+        if (!redundancyPriority)
         {
-            // Set Redundancy Priority before setting to Active
-            if (!redundancyPriority)
-            {
-                redundancyPriority =
-                          std::make_unique<RedundancyPriority>(
-                                    bus,
-                                    path);
-            }
-
-            return softwareServer::Activation::activation(
-                    softwareServer::Activation::Activations::Active);
+            redundancyPriority =
+                      std::make_unique<RedundancyPriority>(
+                                bus,
+                                path);
         }
-        else
-        {
-            return softwareServer::Activation::activation(
-                    softwareServer::Activation::Activations::Failed);
+
+        return softwareServer::Activation::activation(
+                softwareServer::Activation::Activations::Active);
         }
     }
     else
@@ -87,9 +78,11 @@ uint8_t RedundancyPriority::priority(uint8_t value)
 void RedundancyPriority::freePriority(uint8_t basePriority)
 {
     std::ofstream file;
+    //std::string BMC_BUSNAME("org.open_power.Software.Host.Updater");
     std::string BMC_BUSNAME("xyz.openbmc_project.Software.BMC.Updater");
     std::string BMC_PATH("/xyz/openbmc_project/software");
     std::string OBJECT_MANAGER("org.freedesktop.DBus.ObjectManager");
+    std::string OBJECT_PROPERTIES("org.freedesktop.DBus.Properties");
     std::string REDUNDANCY_PRIORITY("xyz.openbmc_project.Software.RedundancyPriority");
 
     auto method = this->bus.new_method_call(BMC_BUSNAME.c_str(),
@@ -112,6 +105,10 @@ void RedundancyPriority::freePriority(uint8_t basePriority)
 
     for (const auto& intf1 : m)
     {
+        std::string path(std::move(intf1.first));
+        file.open("/tmp/errorlog.txt", std::ofstream::app);
+        file << "Path:" + path;
+        file.close();
         for (const auto& intf2 : intf1.second)
         {
             if (intf2.first == REDUNDANCY_PRIORITY.c_str())
@@ -125,11 +122,11 @@ void RedundancyPriority::freePriority(uint8_t basePriority)
                         if(basePriority == value)
                         {
                             RedundancyPriority::freePriority(value + 1);
-                            // Set priority to basePriority
+
                             method = this->bus.new_method_call(
                                             BMC_BUSNAME.c_str(),
-                                            BMC_PATH.c_str(),
-                                            OBJECT_MANAGER.c_str(),
+                                            path.c_str(),
+                                            OBJECT_PROPERTIES.c_str(),
                                             "Set");
                             method.append(REDUNDANCY_PRIORITY.c_str(),
                                           "Priority",
@@ -155,4 +152,3 @@ void RedundancyPriority::freePriority(uint8_t basePriority)
 } // namespace updater
 } // namespace software
 } // namespace phosphor
-
